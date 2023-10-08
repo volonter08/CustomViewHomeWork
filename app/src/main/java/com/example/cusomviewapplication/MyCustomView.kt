@@ -1,5 +1,9 @@
 package com.example.cusomviewapplication
 
+import android.animation.Animator.AnimatorListener
+import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -7,12 +11,19 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
+import android.view.animation.LinearInterpolator
+import androidx.core.animation.addListener
 import androidx.core.content.withStyledAttributes
 import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.random.Random
 
-class MyCustomView @JvmOverloads constructor( context: Context, attrs: AttributeSet? = null, defStyleAttrs:Int = 0, defStyleRes:Int = 0 ):View(context,attrs,defStyleAttrs,defStyleRes) {
+class MyCustomView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttrs: Int = 0,
+    defStyleRes: Int = 0
+) : View(context, attrs, defStyleAttrs, defStyleRes) {
     private var radius = 0F
     private var center = PointF(0F, 0F)
     private var oval = RectF(0F, 0F, 0F, 0F)
@@ -20,6 +31,17 @@ class MyCustomView @JvmOverloads constructor( context: Context, attrs: Attribute
     private var lineWidth = context.convertDpToPx(5F).toFloat()
     private var fontSize = context.convertDpToPx(40F).toFloat()
     private var colors = emptyList<Int>()
+    var progress = 0F
+        set(value) {
+            field =value
+            invalidate()
+        }
+    var angleOffset= 0F
+        set(value) {
+            field =value
+            invalidate()
+        }
+    private var valueAnimator: ValueAnimator? = null
 
     init {
         context.withStyledAttributes(attrs, R.styleable.MyCustomView) {
@@ -41,11 +63,11 @@ class MyCustomView @JvmOverloads constructor( context: Context, attrs: Attribute
         textAlign = Paint.Align.CENTER
         textSize = fontSize
     }
-    var cost:Float = 0F
+    var cost: Float = 0F
     var data: List<Float> = emptyList()
         set(value) {
             field = value
-            invalidate()
+            update()
         }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -61,31 +83,34 @@ class MyCustomView @JvmOverloads constructor( context: Context, attrs: Attribute
         if (data.isEmpty() || cost == 0F) {
             return
         }
-        canvas.drawCircle(center.x,center.y,radius,paint.apply {
-            color = colors.getOrNull(4)?:randomColor()
-        })
-        var startFrom = -90F
+        var startFrom = -90F + angleOffset
         for ((index, datum) in data.withIndex()) {
-            val angle = 360F * datum/cost
+            val angle = 360F * datum / cost
             paint.color = colors.getOrNull(index) ?: randomColor()
-            canvas.drawArc(oval, startFrom, angle, false, paint)
+            canvas.drawArc(oval, startFrom, angle* progress, false, paint)
             startFrom += angle
         }
         paint.color = colors.getOrNull(0) ?: randomColor()
-        if ((startFrom + 90)%360 == 0F)
-        canvas.drawArc(oval, startFrom,180F * data[0]/data.sum(), false, paint)
+        canvas.drawArc(oval, -90F + angleOffset, progress * 180F * data[0] / data.sum(), false, paint)
 
         canvas.drawText(
             "%.2f%%".format(data.fold(0F) { sumProportion, value ->
-                sumProportion + (value/cost)
+                sumProportion + (value / cost)
             } * 100),
             center.x,
-            center.y + textPaint.textSize/4,
+            center.y + textPaint.textSize / 4,
             textPaint,
         )
-        println("onDraw")
+    }
+    private fun update() {
+        ObjectAnimator.ofPropertyValuesHolder(this, PropertyValuesHolder.ofFloat("progress",0F,1F), PropertyValuesHolder.ofFloat("angleOffset",0F,360F))
+           .apply {
+                duration = 2000
+                interpolator = LinearInterpolator()
+            }.start()
     }
     private fun randomColor() = Random.nextInt(0xFF000000.toInt(), 0xFFFFFFFF.toInt())
 }
-fun Context.convertDpToPx(dp:Float):Int =
+
+fun Context.convertDpToPx(dp: Float): Int =
     ceil(this.resources.displayMetrics.density * dp).toInt()
